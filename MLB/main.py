@@ -1,22 +1,10 @@
 import mlbstatsapi
 import numpy as np
 import statsapi
-import requests
-from bs4 import BeautifulSoup as bs
-from matplotlib import pyplot as plt
-from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-from sklearn import linear_model, svm
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import accuracy_score
-from sklearn.preprocessing import LabelEncoder
-from sklearn.linear_model import LinearRegression, Ridge, ElasticNet, Lasso
-from sklearn.model_selection import train_test_split
 from datetime import datetime
 import pandas as pd
-from pybaseball import schedule_and_record, team_ids, team_batting_bref, team_game_logs, season_game_logs, playerid_reverse_lookup, team_pitching_bref, get_splits
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_squared_error, r2_score
+from pybaseball import team_game_logs
 
 # This function reads in the season game logs
 # and pairs them with the stats of the starting pitcher
@@ -41,22 +29,15 @@ def getPitcherForSeason(frame, season, pitcher):
     df['firstInit'] = firstInit
     return df
 mlb = mlbstatsapi.Mlb()
-teamAbbreviations = ['LAA', 'ARI', 'ATL', 'BAL', 'BOS', 'CHC', 'CHW', 'CIN', 'CLE', 'COL', 'DET', 'MIA', 'HOU', 'KCR', 'LAD', 'MIL', 'MIN', 'NYM', 'NYY', 'OAK', 'PHI', 'PIT', 'SDP', 'SEA', 'SFG', 'STL', 'TBR', 'TEX', 'TOR', 'WSN']
-input = input('Please give the abbreviation of the team you would like to predict (Yankees = NYY)')
-homeTeam = input
+brefteamAbbreviations = ['LAA', 'ARI', 'ATL', 'BAL', 'BOS', 'CHC', 'CHW', 'CIN', 'CLE', 'COL', 'DET', 'MIA', 'HOU', 'KCR', 'LAD', 'MIL', 'MIN', 'NYM', 'NYY', 'OAK', 'PHI', 'PIT', 'SDP', 'SEA', 'SFG', 'STL', 'TBR', 'TEX', 'TOR', 'WSN']
+teamAbbreviations = ['LAA', 'ARI', 'ATL', 'BAL', 'BOS', 'CHC', 'CWS', 'CIN', 'CLE', 'COL', 'DET', 'MIA', 'HOU', 'KCR', 'LAD', 'MIL', 'MIN', 'NYM', 'NYY', 'OAK', 'PHI', 'PIT', 'SD', 'SEA', 'SF', 'STL', 'TB', 'TEX', 'TOR', 'WSH']
+team = input('Give team abbreviation')
 # gets all games on the current day's schedule
 games = mlb.get_schedule(datetime.today().strftime('%Y-%m-%d'))
 dates = games.dates
 allPitch = pd.DataFrame()
-# sorts through the games to find the home team id and the away starting pitcher
-for date in dates:
-    for game in date.games:
-        if homeTeam == statsapi.get('team', {'teamId':game.teams.home.team.id})['teams'][0]['abbreviation']:
-            awayTeam = statsapi.get('team', {'teamId':game.teams.away.team.id})['teams'][0]['abbreviation']
-            homeid = game.teams.home.team.id
-            ap = statsapi.get('game', {'gamePk': game.gamepk})['gameData']['probablePitchers']['away']
 # Used to get the pitching stats for all teams in the league in the past 5 years (same data is stored in csv for ease of use)
-'''for team in teamAbbreviations:
+'''for team in brefteamAbbreviations:
     stts = team_pitching_bref(team, 2020, 2024)
     allPitch = allPitch._append(stts, ignore_index=True)
     for i in stts.index:
@@ -66,11 +47,11 @@ allPitch.to_csv('pitcherStats.csv')'''
 # Reads in the pitcher stats from csv created above
 allPitch = pd.read_csv('pitcherStats.csv')
 # Saves all game logs for the given team for the past 5 seasons
-homeGameLog = team_game_logs(2023, homeTeam)
-homeGameLog2 = team_game_logs(2024, homeTeam)
-homeGameLog3 = team_game_logs(2022, homeTeam)
-homeGameLog4 = team_game_logs(2021, homeTeam)
-homeGameLog5 = team_game_logs(2020, homeTeam)
+homeGameLog = team_game_logs(2023, team)
+homeGameLog2 = team_game_logs(2024, team)
+homeGameLog3 = team_game_logs(2022, team)
+homeGameLog4 = team_game_logs(2021, team)
+homeGameLog5 = team_game_logs(2020, team)
 totalHomeLog = pd.concat([homeGameLog5, homeGameLog4, homeGameLog3, homeGameLog, homeGameLog2], ignore_index=True)
 # Gets the starting pitcher's season stats in order of season schedule
 pitch2020 = getPitcherForSeason(homeGameLog5, 2020, allPitch)
@@ -96,8 +77,56 @@ y = combined['R'].values
 x = np.delete(x, 1, axis=1)
 clf = RandomForestRegressor(n_estimators=100, oob_score=True, random_state=0)
 clf.fit(x, y)
-# Manually set stats for prediction, will update and make this automatic in the next update
-A=[False, '.257', '.329', '.421', '0.749', False, '101', '4.09', '1.305', '8', '1.2', '3.7', '10.3']
+# Automated pulling season stats for batting team and pitching stats for away team
+stats = ['season']
+groups = ['hitting']
+# Finds game selected and compares 3 letter abbreviaton from BBref and MLB.com
+for date in dates:
+    for game in date.games:
+        # sets home or away, batting stats, and pitcher id
+        if brefteamAbbreviations.index(team) == teamAbbreviations.index(statsapi.get('team', {'teamId': game.teams.home.team.id})['teams'][0]['abbreviation']):
+            home = True
+            batting = mlb.get_team_stats(game.teams.home.team.id, stats=stats, groups=groups)
+            gameid = statsapi.next_game(game.teams.home.team.id)
+            pitcher = mlb.get_person(mlb.get_game(gameid).__dict__['gamedata'].__dict__['probablepitchers'].__dict__['away'].__dict__['id'])
+        if brefteamAbbreviations.index(team) == teamAbbreviations.index(statsapi.get('team', {'teamId': game.teams.away.team.id})['teams'][0]['abbreviation']):
+            home = False
+            batting = mlb.get_team_stats(game.teams.away.team.id, stats=stats, groups=groups)
+            gameid = statsapi.next_game(game.teams.away.team.id)
+            pitcher = mlb.get_person(mlb.get_game(gameid).__dict__['gamedata'].__dict__['probablepitchers'].__dict__['home'].__dict__['id'])
+# Sets the handedness of the opposing pitcher
+pitchhand = pitcher.__dict__['pitchhand'].__dict__['code']
+pitcher = pitcher.__dict__['namefirstlast']
+tempdf = allPitch.loc[(allPitch['Name'].str.contains(pitcher)) & (allPitch['Year'] == 2024)]
+tempdf2 = allPitch.loc[(allPitch['Name'].str.contains(pitcher)) & (allPitch['Year'] == 2023)]
+# Gathers pitcher stats from last two seasons and averages them out.
+# If pitcher is a rookie or didn't play last season, only 2024 stats will be used
+if tempdf2.empty:
+    FIP = tempdf['FIP']
+    eraplus = tempdf['ERA+']
+    WHIP = tempdf['WHIP']
+    H9 = tempdf['H9']
+    HR9 = tempdf['HR9']
+    BB9 = tempdf['BB9']
+    SO9 = tempdf['SO9']
+else:
+    bothseasons = pd.concat([tempdf, tempdf2], ignore_index=True)
+    FIP = (bothseasons['FIP'][0] + bothseasons['FIP'][1])/2
+    eraplus = (bothseasons['ERA+'][0] + bothseasons['ERA+'][1])/2
+    WHIP = (bothseasons['WHIP'][0] + bothseasons['WHIP'][1])/2
+    H9 = (bothseasons['H9'][0] + bothseasons['H9'][1])/2
+    HR9 = (bothseasons['HR9'][0] + bothseasons['HR9'][1])/2
+    BB9 = (bothseasons['BB9'][0] + bothseasons['BB9'][1])/2
+    SO9 = (bothseasons['SO9'][0] + bothseasons['SO9'][1])/2
+hitting = batting['hitting']['season']
+splits = hitting.splits[0].__dict__['stat'].__dict__
+if pitchhand == 'L':
+    RH = False
+if pitchhand == 'R':
+    RH = True
+# Puts the predict data into a dataframe and uses the Random Forest Regressor
+# model to predict the number of runs a team will score in today's MLB game
+A=[home, splits['avg'],  splits['obp'], splits['slg'], splits['ops'], RH, eraplus, FIP, WHIP, H9, HR9, BB9, SO9]
 tester = pd.DataFrame([A])
 pred = clf.predict(tester)
 print(pred)
