@@ -109,6 +109,14 @@ if tempdf2.empty:
     HR9 = tempdf['HR9']
     BB9 = tempdf['BB9']
     SO9 = tempdf['SO9']
+elif tempdf.empty:
+    FIP = tempdf2['FIP']
+    eraplus = tempdf2['ERA+']
+    WHIP = tempdf2['WHIP']
+    H9 = tempdf2['H9']
+    HR9 = tempdf2['HR9']
+    BB9 = tempdf2['BB9']
+    SO9 = tempdf2['SO9']
 else:
     bothseasons = pd.concat([tempdf, tempdf2], ignore_index=True)
     FIP = (bothseasons['FIP'][0] + bothseasons['FIP'][1])/2
