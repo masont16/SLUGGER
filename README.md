@@ -8,3 +8,5 @@ When the program is run, the user should input the 3 letter abbreviation of the 
 The model can only predict the current day's schedule and will  return an error when the starting pitcher has not been announced yet. There will be future updates to solve these issues.
 
 The spreadsheet of predictions and results will be updated daily, keeping a running count of profit if a user were to wager 1 unit on each bet since 7/24/2024.
+
+As of 8/7/2024, if a bettor were to place each favored bet at 1 unit per wager, they would be in profit 8.5 units, or 8.5% of their bankroll.
